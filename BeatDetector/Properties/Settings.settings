@@ -1,0 +1,61 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="BeatDetector.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="BD_DETECTION_RANGES" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">128</Value>
+    </Setting>
+    <Setting Name="BD_DETECTION_RATE" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">12</Value>
+    </Setting>
+    <Setting Name="BD_DETECTION_FACTOR" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0.915</Value>
+    </Setting>
+    <Setting Name="BD_QUALITY_DECAY" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0.6</Value>
+    </Setting>
+    <Setting Name="BD_QUALITY_TOLERANCE" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0.96</Value>
+    </Setting>
+    <Setting Name="BD_QUALITY_REWARD" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">10</Value>
+    </Setting>
+    <Setting Name="BD_QUALITY_STEP" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">0.1</Value>
+    </Setting>
+    <Setting Name="BD_MINIMUM_CONTRIBUTIONS" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">6</Value>
+    </Setting>
+    <Setting Name="BD_FINISH_LINE" Type="System.Single" Scope="User">
+      <Value Profile="(Default)">60</Value>
+    </Setting>
+    <Setting Name="BD_REWARD_TOLERANCES" Type="System.Single[]" Scope="User">
+      <Value Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;ArrayOfFloat xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;float&gt;0.001&lt;/float&gt;
+  &lt;float&gt;0.005&lt;/float&gt;
+  &lt;float&gt;0.01&lt;/float&gt;
+  &lt;float&gt;0.02&lt;/float&gt;
+  &lt;float&gt;0.04&lt;/float&gt;
+  &lt;float&gt;0.08&lt;/float&gt;
+  &lt;float&gt;0.1&lt;/float&gt;
+  &lt;float&gt;0.15&lt;/float&gt;
+  &lt;float&gt;0.3&lt;/float&gt;
+&lt;/ArrayOfFloat&gt;</Value>
+    </Setting>
+    <Setting Name="BD_REWARD_MULTIPLIERS" Type="System.Single[]" Scope="User">
+      <Value Profile="(Default)">&lt;?xml version="1.0" encoding="utf-16"?&gt;
+&lt;ArrayOfFloat xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"&gt;
+  &lt;float&gt;20&lt;/float&gt;
+  &lt;float&gt;10&lt;/float&gt;
+  &lt;float&gt;8&lt;/float&gt;
+  &lt;float&gt;1&lt;/float&gt;
+  &lt;float&gt;0.5&lt;/float&gt;
+  &lt;float&gt;0.25&lt;/float&gt;
+  &lt;float&gt;0.125&lt;/float&gt;
+  &lt;float&gt;0.0625&lt;/float&gt;
+  &lt;float&gt;0.03125&lt;/float&gt;
+&lt;/ArrayOfFloat&gt;</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
