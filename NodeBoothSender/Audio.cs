@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NodeBoothSender
@@ -11,6 +12,10 @@ namespace NodeBoothSender
     {
         private IWaveIn lineIn;
         private SampleAggregator sampleAggregator = new SampleAggregator(8192);
+        private BeatDetector beatDetector;
+        private Timer secTimer;
+
+        private int recSeconds;
 
         public Audio()
         {
@@ -20,6 +25,13 @@ namespace NodeBoothSender
             lineIn = new WasapiLoopbackCapture();
             lineIn.DataAvailable += OnAudioDataAvailable;
             lineIn.StartRecording();
+
+            recSeconds = 0;
+
+            secTimer = new Timer(secTimerTick);
+            secTimer.Change(0, 1000);
+
+            beatDetector = new BeatDetector(85.0f, 169.0f);
         }
 
         void OnAudioDataAvailable(object sender, WaveInEventArgs e)
@@ -44,7 +56,13 @@ namespace NodeBoothSender
 
         void FftCalculated(object sender, FftEventArgs e)
         {
-            Console.WriteLine(e.Result[0].X + " - " + e.Result[0].Y);
+            //Console.WriteLine(e.Result[0].X + " - " + e.Result[0].Y);
+            beatDetector.Process(recSeconds, e.Result);
+        }
+
+        private void secTimerTick(object sender)
+        {
+            recSeconds += 1;
         }
     }
 }
