@@ -31,6 +31,7 @@ namespace NodeBoothSender
 
         private NotifyIcon      trayIcon;
         private ContextMenu     trayMenu;
+        public Debug            debugWindow;
 
         private bool            serverPingable;
         private HttpClient httpClient = new HttpClient(new HttpClientHandler    {UseProxy = false}  );
@@ -55,6 +56,7 @@ namespace NodeBoothSender
             // Create a simple tray menu with only one item.
             trayMenu = new ContextMenu();
             trayMenu.MenuItems.Add("Exit", OnExit);
+            trayMenu.MenuItems.Add("Debug", OnDebug);
 
             // Create a tray icon. In this example we use a
             // standard system icon for simplicity, but you
@@ -67,11 +69,13 @@ namespace NodeBoothSender
             trayIcon.ContextMenu = trayMenu;
             trayIcon.Visible = true;
 
+            debugWindow = new Debug();
+
             aidaUpdateWorker.DoWork += new DoWorkEventHandler(aidaUpdateWorkerDoWork);
             aidaUpdateWorker.WorkerSupportsCancellation = true;
             aidaUpdateWorker.RunWorkerAsync(aidaUpdateWorker);
 
-            audioWorker = new Audio();
+            audioWorker = new Audio(debugWindow);
         }
 
         void aidaUpdateWorkerDoWork(object sender, DoWorkEventArgs e)
@@ -221,6 +225,11 @@ namespace NodeBoothSender
         private void OnExit(object sender, EventArgs e)
         {
             Application.Exit();
+        }
+
+        private void OnDebug(object sender, EventArgs e)
+        {
+            debugWindow.Show();
         }
 
 

@@ -1,47 +1,92 @@
 ﻿using NAudio.Wave;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace NodeBoothSender
 {
     class Audio
     {
-        private IWaveIn lineIn;
-        private SampleAggregator sampleAggregator = new SampleAggregator(8192);
-        private BeatDetector beatDetector;
-        private Timer secTimer;
+        //private IWaveIn lineIn;
+        //private Stopwatch runTimeStopwatch;
 
-        private int recSeconds;
+        //private SampleAggregator sampleAggregator = new SampleAggregator(8192);
+        //private BeatDetector beatDetector;
+        //private BeatDetectorCPP beatDetectorCPP;
+        private SpectrumBeatDetector szabBeatDetector;
+        private Debug debugWindow;
 
-        public Audio()
+        private List<byte> valueList = new List<byte>();
+
+        public Audio(Debug debugWindow)
         {
-            sampleAggregator.FftCalculated += new EventHandler<FftEventArgs>(FftCalculated);
-            sampleAggregator.PerformFFT = true;
+            //sampleAggregator.FftCalculated += new EventHandler<FftEventArgs>(FftCalculated);
+            //sampleAggregator.PerformFFT = true;
 
-            lineIn = new WasapiLoopbackCapture();
-            lineIn.DataAvailable += OnAudioDataAvailable;
-            lineIn.StartRecording();
+            //lineIn = new WasapiLoopbackCapture();
+            //lineIn.DataAvailable += OnAudioDataAvailable;
+            //lineIn.StartRecording();
 
-            recSeconds = 0;
+            //runTimeStopwatch = Stopwatch.StartNew();
 
-            secTimer = new Timer(secTimerTick);
-            secTimer.Change(0, 1000);
+            //beatDetector = new BeatDetector(85.0f, 169.0f);
+            //beatDetectorCPP = new BeatDetectorCPP();
 
-            beatDetector = new BeatDetector(85.0f, 169.0f);
+            this.debugWindow = debugWindow;
+
+            szabBeatDetector = new SpectrumBeatDetector(3);
+            szabBeatDetector.Subscribe(beatDetected);
+            szabBeatDetector.StartAnalysis();
         }
 
-        void OnAudioDataAvailable(object sender, WaveInEventArgs e)
+        void beatDetected(byte Value)
         {
-            /*if (this.InvokeRequired)
+            valueList.Add(Value);
+
+            if (valueList.Count > 6)
+                valueList.RemoveAt(0);
+
+            int successCounter = 0;
+            foreach(byte value in valueList)
+            {
+                switch (value)
+                {
+                    case 1:
+                        successCounter++;
+                        break;
+                    default:
+                        successCounter = 0;
+                        break;
+                }
+            }
+
+            if (successCounter >= 6)
+            {
+                //Actually a good beat
+                try
+                {
+                    debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Open DEBUG Menu!");
+                }
+            }
+        }
+
+        /*void OnAudioDataAvailable(object sender, WaveInEventArgs e)
+        {
+            if (this.InvokeRequired)
             {
                 this.BeginInvoke(new EventHandler<WaveInEventArgs>(OnAudioDataAvailable), sender, e);
             }
             else
-            {*/
+            {
                 byte[] buffer = e.Buffer;
                 int bytesRecorded = e.BytesRecorded;
                 int bufferIncrement = lineIn.WaveFormat.BlockAlign;
@@ -52,17 +97,8 @@ namespace NodeBoothSender
                     sampleAggregator.Add(sample32);
                 }
             //}
-        }
+        }*/
 
-        void FftCalculated(object sender, FftEventArgs e)
-        {
-            //Console.WriteLine(e.Result[0].X + " - " + e.Result[0].Y);
-            beatDetector.Process(recSeconds, e.Result);
-        }
-
-        private void secTimerTick(object sender)
-        {
-            recSeconds += 1;
-        }
+        
     }
 }
