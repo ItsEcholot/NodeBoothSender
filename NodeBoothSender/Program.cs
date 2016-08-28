@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System.ComponentModel;
@@ -11,13 +10,26 @@ using Newtonsoft.Json;
 using System.Net.Http;
 using System.Text;
 using System.Diagnostics;
+using System.Collections.Generic;
+using Un4seen.Bass.Misc;
+using Un4seen.Bass;
+using Un4seen.BassWasapi;
+using System.Threading.Tasks;
+using System.Timers;
 
 namespace NodeBoothSender
 {
     public class SysTrayApp : Form
     {
         BackgroundWorker aidaUpdateWorker = new BackgroundWorker();
-        Audio audioWorker;
+
+        static BPMCounter bassBeatDetector;
+        static BassWasapiHandler wasapi;
+
+        SpectrumBeatDetector szabBeatDetector;
+        List<byte> beatValueList = new List<byte>();
+        byte beatValue = 0;
+
         string serverUrl = "http://192.168.178.38:8101";
 
         /// <summary>
@@ -33,7 +45,6 @@ namespace NodeBoothSender
         private ContextMenu     trayMenu;
         public Debug            debugWindow;
 
-        private bool            serverPingable;
         private HttpClient httpClient = new HttpClient(new HttpClientHandler    {UseProxy = false}  );
 
 
@@ -75,7 +86,38 @@ namespace NodeBoothSender
             aidaUpdateWorker.WorkerSupportsCancellation = true;
             aidaUpdateWorker.RunWorkerAsync(aidaUpdateWorker);
 
-            audioWorker = new Audio(debugWindow);
+            /*szabBeatDetector = new SpectrumBeatDetector(3);
+            szabBeatDetector.Subscribe(beatDetected);
+            szabBeatDetector.StartAnalysis();*/
+
+
+            //BPM Calculation
+            BassNet.Registration("marc.berchtold@hotmail.de", "");
+            Bass.BASS_Init(0, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero);
+
+            wasapi = new BassWasapiHandler(3, false, 48000, 2, 0f, 0f);
+            wasapi.Init();
+            Console.WriteLine(wasapi.InputChannel);
+            wasapi.Start();
+
+            System.Timers.Timer bassBPMTimer = new System.Timers.Timer(5);
+            bassBPMTimer.Elapsed += bassBPMTimerEvent;
+            bassBPMTimer.AutoReset = true;
+            bassBPMTimer.Enabled = true;
+
+            bassBeatDetector = new BPMCounter(5, 44100);
+            bassBeatDetector.MaxBPM = 200;
+            bassBeatDetector.MinBPM = 70;
+            bassBeatDetector.Reset(44100);
+        }
+
+        private static void bassBPMTimerEvent(Object source, ElapsedEventArgs e)
+        {
+            bool beat = bassBeatDetector.ProcessAudio(wasapi.InputChannel, true);
+            if (beat)
+            {
+                Console.WriteLine(bassBeatDetector.BPM.ToString("#00.0"));
+            }
         }
 
         void aidaUpdateWorkerDoWork(object sender, DoWorkEventArgs e)
@@ -95,8 +137,6 @@ namespace NodeBoothSender
                 Thread.Sleep(threadSleepDuration);
             }
         }
-
-
 
         private string updateAidaInformation()
         {
@@ -203,6 +243,7 @@ namespace NodeBoothSender
                     Encoding.UTF8,
                     "application/json"
                 ));
+                beatValue = 0;
             }
             catch (Exception)
             {
@@ -211,7 +252,63 @@ namespace NodeBoothSender
             }
         }
 
+        void beatDetected(byte Value)
+        {
+            beatValueList.Add(Value);
 
+            if (beatValueList.Count > 6)
+                beatValueList.RemoveAt(0);
+
+            int successCounter = 0;
+            foreach (byte value in beatValueList)
+            {
+                switch (value)
+                {
+                    case 1:
+                        successCounter++;
+                        break;
+                    default:
+                        successCounter = 0;
+                        break;
+                }
+            }
+
+            if (successCounter >= 6)
+            {
+                //Actually a good beat
+                beatValue = Value;
+                sendBeatInformation(Value);
+
+                /*try
+                {
+                    debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Open DEBUG Menu!");
+                }*/
+            }
+        }
+
+        private async void sendBeatInformation(byte Value)
+        {
+            string json = "{\"beatValue\": " + Value + "}";
+            Console.WriteLine(json);
+            try
+            {
+                await httpClient.PostAsync(serverUrl+"/beat", new StringContent(
+                    json,
+                    Encoding.UTF8,
+                    "application/json"
+                ));
+                beatValue = 0;
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("Beat Value sending failed");
+                return;
+            }
+        }
 
         protected override void OnLoad(EventArgs e)
         {

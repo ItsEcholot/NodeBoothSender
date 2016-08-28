@@ -126,7 +126,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Audio.cs" />
     <Compile Include="BassExceptions.cs" />
     <Compile Include="BeatDetector.cs" />
     <Compile Include="BeatDetectorCPP.cs" />

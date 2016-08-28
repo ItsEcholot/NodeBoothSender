@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using Un4seen.Bass;
 using Un4seen.BassWasapi;
+using Un4seen.Bass.Misc;
 
 namespace NodeBoothSender
 {
