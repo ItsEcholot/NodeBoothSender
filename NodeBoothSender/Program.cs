@@ -21,15 +21,18 @@ namespace NodeBoothSender
 {
     public class SysTrayApp : Form
     {
+        //Main worker for Hardware Info
         BackgroundWorker aidaUpdateWorker = new BackgroundWorker();
 
-        static BPMCounter bassBeatDetector;
-        static BassWasapiHandler wasapi;
+        //static BPMCounter bassBeatDetector;
+        //static BassWasapiHandler wasapi;
 
+        //Initialize the szabBeatDetector and the needed variables.
         SpectrumBeatDetector szabBeatDetector;
         List<byte> beatValueList = new List<byte>();
         byte beatValue = 0;
 
+        //HTTP string which points to the node server.
         string serverUrl = "http://192.168.178.38:8101";
 
         /// <summary>
@@ -45,9 +48,11 @@ namespace NodeBoothSender
         private ContextMenu     trayMenu;
         public Debug            debugWindow;
 
+        //HttpClient for API calls
         private HttpClient httpClient = new HttpClient(new HttpClientHandler    {UseProxy = false}  );
 
-
+        //Initialize PerformanceCounters for fast HardwareInfos.
+        //This helps delivering hardwareInfos faster than the AIDA64 API can handle.
         protected PerformanceCounter cpuCounter = new PerformanceCounter("Prozessor", "Prozessorzeit (%)", "_TOTAL");
 
         protected PerformanceCounter cpuCounter1 = new PerformanceCounter("Prozessor", "Prozessorzeit (%)", "0");
@@ -64,14 +69,12 @@ namespace NodeBoothSender
 
         public SysTrayApp()
         {
-            // Create a simple tray menu with only one item.
+            // Create a tray menu
             trayMenu = new ContextMenu();
             trayMenu.MenuItems.Add("Exit", OnExit);
             trayMenu.MenuItems.Add("Debug", OnDebug);
 
-            // Create a tray icon. In this example we use a
-            // standard system icon for simplicity, but you
-            // can of course use your own custom icon too.
+            // Create a tray icon.
             trayIcon = new NotifyIcon();
             trayIcon.Text = "NodeBooth Sender";
             trayIcon.Icon = new Icon(SystemIcons.Application, 40, 40);
@@ -80,19 +83,22 @@ namespace NodeBoothSender
             trayIcon.ContextMenu = trayMenu;
             trayIcon.Visible = true;
 
+            //Initialize the debugWindow with several debug visualizations on it.
             debugWindow = new Debug();
 
+            //Start the AIDA64 + PerformanceCounter HardwareInfo node API call worker.
             aidaUpdateWorker.DoWork += new DoWorkEventHandler(aidaUpdateWorkerDoWork);
             aidaUpdateWorker.WorkerSupportsCancellation = true;
             aidaUpdateWorker.RunWorkerAsync(aidaUpdateWorker);
 
-            /*szabBeatDetector = new SpectrumBeatDetector(3);
+            //Start the szabBeatDetector
+            szabBeatDetector = new SpectrumBeatDetector(3);
             szabBeatDetector.Subscribe(beatDetected);
-            szabBeatDetector.StartAnalysis();*/
+            szabBeatDetector.StartAnalysis();
 
 
             //BPM Calculation
-            BassNet.Registration("marc.berchtold@hotmail.de", "");
+            /*BassNet.Registration("marc.berchtold@hotmail.de", "");
             Bass.BASS_Init(0, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero);
 
             wasapi = new BassWasapiHandler(3, false, 48000, 2, 0f, 0f);
@@ -108,32 +114,27 @@ namespace NodeBoothSender
             bassBeatDetector = new BPMCounter(5, 44100);
             bassBeatDetector.MaxBPM = 200;
             bassBeatDetector.MinBPM = 70;
-            bassBeatDetector.Reset(44100);
+            bassBeatDetector.Reset(44100);*/
         }
 
-        private static void bassBPMTimerEvent(Object source, ElapsedEventArgs e)
+        /*private static void bassBPMTimerEvent(Object source, ElapsedEventArgs e)
         {
             bool beat = bassBeatDetector.ProcessAudio(wasapi.InputChannel, true);
             if (beat)
             {
                 Console.WriteLine(bassBeatDetector.BPM.ToString("#00.0"));
             }
-        }
+        }*/
 
         void aidaUpdateWorkerDoWork(object sender, DoWorkEventArgs e)
         {
             BackgroundWorker localbg = (BackgroundWorker)e.Argument;
             while (!localbg.CancellationPending)
             {
-                //DateTime startTime = DateTime.Now;
-
+                //Call the updateAidaInformation and send the results to the node API
                 sendAidaInformation(updateAidaInformation());
 
-
-                /*DateTime stopTime = DateTime.Now;
-                TimeSpan elapsedTime = DateTime.Parse(stopTime.ToString()).Subtract(DateTime.Parse(startTime.ToString()));*/
-
-                int threadSleepDuration = 250; //- (int)elapsedTime.TotalMilliseconds;
+                int threadSleepDuration = 250;
                 Thread.Sleep(threadSleepDuration);
             }
         }
@@ -141,6 +142,7 @@ namespace NodeBoothSender
         private string updateAidaInformation()
         {
             string tempString = string.Empty;
+            //Read the infos from AIDA64 Shared Memory and create a valid XML-Document
             try
             {
                 tempString += "<AIDA64>";
@@ -164,6 +166,7 @@ namespace NodeBoothSender
                 return "Error getting Memory Section... Is AIDA64 running and Shared Memory activated?";
             }
 
+            //Add the faster updating Hardware Infos from the PerformanceCounters and change the according values in the XML file.
             try
             {
                 XDocument aidaXML = XDocument.Parse(tempString);
@@ -178,6 +181,7 @@ namespace NodeBoothSender
                             usage = (int)cpuCounter.NextValue();
                             core.Element("value").Value = usage.ToString();
                             break;
+
 
                         case "SCPU1UTI":
                             usage = (int)cpuCounter1.NextValue();
@@ -213,7 +217,6 @@ namespace NodeBoothSender
                             break;
 
 
-
                         case "SNIC2DLRATE":
                             usage = (int)lanDownCounter.NextValue()/1000;
                             core.Element("value").Value = usage.ToString();
@@ -224,6 +227,7 @@ namespace NodeBoothSender
                             break;
                     }
                 }
+                //Convert the XML-file to a JSON string.
                 var Json = JsonConvert.SerializeXNode(aidaXML, Formatting.None, true);
 
                 return Json;
@@ -252,6 +256,8 @@ namespace NodeBoothSender
             }
         }
 
+
+
         void beatDetected(byte Value)
         {
             beatValueList.Add(Value);
@@ -279,14 +285,14 @@ namespace NodeBoothSender
                 beatValue = Value;
                 sendBeatInformation(Value);
 
-                /*try
+                try
                 {
                     debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine("Open DEBUG Menu!");
-                }*/
+                }
             }
         }
 
@@ -310,6 +316,8 @@ namespace NodeBoothSender
             }
         }
 
+
+
         protected override void OnLoad(EventArgs e)
         {
             Visible = false; // Hide form window.
@@ -317,7 +325,6 @@ namespace NodeBoothSender
 
             base.OnLoad(e);
         }
-
 
         private void OnExit(object sender, EventArgs e)
         {
