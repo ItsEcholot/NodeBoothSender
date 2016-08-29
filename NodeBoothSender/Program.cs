@@ -30,6 +30,8 @@ namespace NodeBoothSender
         List<byte> beatValueList = new List<byte>();
         byte beatValue = 0;
 
+        System.Timers.Timer beatTimer = new System.Timers.Timer(1000);
+
         string serverUrl = "http://192.168.178.38:8101";
 
         /// <summary>
@@ -86,29 +88,32 @@ namespace NodeBoothSender
             aidaUpdateWorker.WorkerSupportsCancellation = true;
             aidaUpdateWorker.RunWorkerAsync(aidaUpdateWorker);
 
-            /*szabBeatDetector = new SpectrumBeatDetector(3);
-            szabBeatDetector.Subscribe(beatDetected);
-            szabBeatDetector.StartAnalysis();*/
-
 
             //BPM Calculation
-            BassNet.Registration("marc.berchtold@hotmail.de", "");
-            Bass.BASS_Init(0, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero);
+            szabBeatDetector = new SpectrumBeatDetector(3);
+            szabBeatDetector.Subscribe(beatDetected);
+            szabBeatDetector.StartAnalysis();
 
-            wasapi = new BassWasapiHandler(3, false, 48000, 2, 0f, 0f);
+            //BassNet.Registration("marc.berchtold@hotmail.de", "2X223925312423");
+            //Bass.BASS_Init(0, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero);
+
+            /*wasapi = new BassWasapiHandler(3, false, 48000, 2, 0f, 0f);
             wasapi.Init();
-            Console.WriteLine(wasapi.InputChannel);
             wasapi.Start();
 
-            System.Timers.Timer bassBPMTimer = new System.Timers.Timer(5);
+            System.Timers.Timer bassBPMTimer = new System.Timers.Timer(15);
             bassBPMTimer.Elapsed += bassBPMTimerEvent;
             bassBPMTimer.AutoReset = true;
             bassBPMTimer.Enabled = true;
 
-            bassBeatDetector = new BPMCounter(5, 44100);
+            bassBeatDetector = new BPMCounter(15, 44100);
             bassBeatDetector.MaxBPM = 200;
             bassBeatDetector.MinBPM = 70;
             bassBeatDetector.Reset(44100);
+
+            beatTimer.Elapsed += onBeat;
+            beatTimer.AutoReset = true;
+            beatTimer.Enabled = false;*/
         }
 
         private static void bassBPMTimerEvent(Object source, ElapsedEventArgs e)
@@ -279,21 +284,32 @@ namespace NodeBoothSender
                 beatValue = Value;
                 sendBeatInformation(Value);
 
-                /*try
+                if (bassBeatDetector.BPM >= 60)
                 {
-                    debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
+                    Console.WriteLine(((bassBeatDetector.BPM * 1000) / 60).ToString());
+                    beatTimer.Enabled = true;
+                    beatTimer.Stop();
+                    beatTimer.Interval = (int)((bassBeatDetector.BPM * 1000) / 60);
+                    beatTimer.Start();
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Open DEBUG Menu!");
-                }*/
+            }
+        }
+
+        private void onBeat(Object source, ElapsedEventArgs e)
+        {
+            try
+            {
+                debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
+            }
+            catch (Exception Error)
+            {
+                Console.WriteLine("Open DEBUG Menu!");
             }
         }
 
         private async void sendBeatInformation(byte Value)
         {
             string json = "{\"beatValue\": " + Value + "}";
-            Console.WriteLine(json);
             try
             {
                 await httpClient.PostAsync(serverUrl+"/beat", new StringContent(

@@ -70,6 +70,7 @@ namespace NodeBoothSender
             _BASSSensivity = BASSSensivity;
             _MIDSSensivity = MIDSSensivity;
             _DeviceCode = DeviceCode;
+
             Init();
         }
 

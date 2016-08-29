@@ -71,6 +71,7 @@ namespace NodeBoothSender
             this.ResumeLayout(false);
 
             updateBeatProgressBar = new updateBeatProgressBarDelegate(updateProgressBar1);
+            this.Show();
         }
 
         private void decayBeatProgressBar(object sender, EventArgs e)
