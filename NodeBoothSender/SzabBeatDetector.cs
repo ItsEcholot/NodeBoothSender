@@ -40,7 +40,7 @@ namespace NodeBoothSender
         private const int HISTORY = 250;
 
         // Events
-        public delegate void BeatDetectedHandler(byte Value);
+        public delegate void BeatDetectedHandler(byte Value, double[] averageEnergies);
         private event BeatDetectedHandler OnDetected;
 
         // Threading
@@ -323,7 +323,7 @@ namespace NodeBoothSender
             {
                 foreach (BeatDetectedHandler Subscriber in OnDetected.GetInvocationList())
                 {
-                    ThreadPool.QueueUserWorkItem(delegate { Subscriber(result); });
+                    ThreadPool.QueueUserWorkItem(delegate { Subscriber(result, averageEnergies); });
                 }
             }
 

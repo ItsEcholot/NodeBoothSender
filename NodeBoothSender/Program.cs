@@ -16,6 +16,7 @@ using Un4seen.Bass;
 using Un4seen.BassWasapi;
 using System.Threading.Tasks;
 using System.Timers;
+using Newtonsoft.Json.Linq;
 
 namespace NodeBoothSender
 {
@@ -242,23 +243,56 @@ namespace NodeBoothSender
         {
             try
             {
-                await httpClient.PostAsync(serverUrl, new StringContent(
+                var result = httpClient.PostAsync(serverUrl, new StringContent(
                     jsonAidaInformation.ToString(),
                     Encoding.UTF8,
                     "application/json"
-                ));
+                )).Result;
+
+                string resultJson = result.Content.ReadAsStringAsync().Result;
+
+                if (resultJson != "\"\"")
+                {
+                    JToken token = JObject.Parse(resultJson);
+
+                    if (token.SelectToken("lineOut").Value<String>() == "speaker")
+                    {
+                        System.Diagnostics.Process process = new System.Diagnostics.Process();
+                        process.StartInfo.FileName = "C:\\NIRCMD\\Speaker.bat";
+                        process.StartInfo.WorkingDirectory = "C:\\NIRCMD";
+                        process.StartInfo.UseShellExecute = true;
+                        process.Start();
+                    }
+                    else if (token.SelectToken("lineOut").Value<String>() == "headset")
+                    {
+                        System.Diagnostics.Process process = new System.Diagnostics.Process();
+                        process.StartInfo.FileName = "C:\\NIRCMD\\HeadsetRazer.bat";
+                        process.StartInfo.WorkingDirectory = "C:\\NIRCMD";
+                        process.StartInfo.UseShellExecute = true;
+                        process.Start();
+
+                        if(token.SelectToken("lineIn").Value<String>() == "headset")
+                        {
+                            System.Diagnostics.Process process2 = new System.Diagnostics.Process();
+                            process2.StartInfo.FileName = "C:\\NIRCMD\\HeadsetMic.bat";
+                            process2.StartInfo.WorkingDirectory = "C:\\NIRCMD";
+                            process2.StartInfo.UseShellExecute = true;
+                            process2.Start();
+                        }
+                    }
+                }
+
                 beatValue = 0;
             }
             catch (Exception)
             {
-
                 return;
             }
         }
 
 
 
-        void beatDetected(byte Value)
+        void beatDetected(byte Value, double[] averageEnergies)
         {
             beatValueList.Add(Value);
 
@@ -266,9 +300,9 @@ namespace NodeBoothSender
                 beatValueList.RemoveAt(0);
 
             int successCounter = 0;
-            foreach (byte value in beatValueList)
+            for(int i=0; i<beatValueList.Count; i++)
             {
-                switch (value)
+                switch (beatValueList[i])
                 {
                     case 1:
                         successCounter++;
@@ -285,29 +319,34 @@ namespace NodeBoothSender
                 beatValue = Value;
                 sendBeatInformation(Value);
 
-                try
+                beatValueList.Clear();
+
+                /*try
                 {
                     debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine("Open DEBUG Menu!");
-                }
+                }*/
             }
         }
 
         private async void sendBeatInformation(byte Value)
         {
-            string json = "{\"beatValue\": " + Value + "}";
-            Console.WriteLine(json);
+            string json = "{";
+            json += "\"beatValue\": " + Value;
+
+            json += "}";
+
             try
             {
+                beatValue = 0;
                 await httpClient.PostAsync(serverUrl+"/beat", new StringContent(
                     json,
                     Encoding.UTF8,
                     "application/json"
                 ));
-                beatValue = 0;
             }
             catch (Exception)
             {
@@ -329,6 +368,7 @@ namespace NodeBoothSender
         private void OnExit(object sender, EventArgs e)
         {
             Application.Exit();
+            Environment.Exit(0);
         }
 
         private void OnDebug(object sender, EventArgs e)
