@@ -10,13 +10,14 @@ using Newtonsoft.Json;
 using System.Net.Http;
 using System.Text;
 using System.Diagnostics;
-using System.Collections.Generic;
-using Un4seen.Bass.Misc;
-using Un4seen.Bass;
-using Un4seen.BassWasapi;
-using System.Threading.Tasks;
-using System.Timers;
 using Newtonsoft.Json.Linq;
+
+using SpotifyAPI.Local;
+using SpotifyAPI.Local.Enums;
+using SpotifyAPI.Local.Models;
+
+//Thanks to mdjarv: https://github.com/mdjarv/assettocorsasharedmemory
+using AssettoCorsaSharedMemory;
 
 namespace NodeBoothSender
 {
@@ -24,17 +25,16 @@ namespace NodeBoothSender
     {
         //Main worker for Hardware Info
         BackgroundWorker aidaUpdateWorker = new BackgroundWorker();
+        BackgroundWorker spotifyWorker = new BackgroundWorker();
+        BackgroundWorker gameIntegrationUpdateWorker = new BackgroundWorker();
 
-        //static BPMCounter bassBeatDetector;
-        //static BassWasapiHandler wasapi;
+        AssettoCorsa assettoCorsa = new AssettoCorsa();
+        SpotifyLocalAPI spotifyLocalApi = new SpotifyLocalAPI();
 
-        //Initialize the szabBeatDetector and the needed variables.
-        SpectrumBeatDetector szabBeatDetector;
-        List<byte> beatValueList = new List<byte>();
-        byte beatValue = 0;
+
 
         //HTTP string which points to the node server.
-        string serverUrl = "http://192.168.178.38:8101";
+        string serverUrl = "http://192.168.178.66:8101";
 
         /// <summary>
         /// The main entry point for the application.
@@ -92,40 +92,18 @@ namespace NodeBoothSender
             aidaUpdateWorker.WorkerSupportsCancellation = true;
             aidaUpdateWorker.RunWorkerAsync(aidaUpdateWorker);
 
-            //Start the szabBeatDetector
-            szabBeatDetector = new SpectrumBeatDetector(3);
-            szabBeatDetector.Subscribe(beatDetected);
-            szabBeatDetector.StartAnalysis();
+            //Start the spotify API worker
+            spotifyWorker.DoWork += new DoWorkEventHandler(spotifyWorkerDoWork);
+            spotifyWorker.WorkerSupportsCancellation = true;
+            spotifyWorker.RunWorkerAsync(spotifyWorker);
 
+            
 
-            //BPM Calculation
-            /*BassNet.Registration("marc.berchtold@hotmail.de", "");
-            Bass.BASS_Init(0, 44100, BASSInit.BASS_DEVICE_DEFAULT, IntPtr.Zero);
-
-            wasapi = new BassWasapiHandler(3, false, 48000, 2, 0f, 0f);
-            wasapi.Init();
-            Console.WriteLine(wasapi.InputChannel);
-            wasapi.Start();
-
-            System.Timers.Timer bassBPMTimer = new System.Timers.Timer(5);
-            bassBPMTimer.Elapsed += bassBPMTimerEvent;
-            bassBPMTimer.AutoReset = true;
-            bassBPMTimer.Enabled = true;
-
-            bassBeatDetector = new BPMCounter(5, 44100);
-            bassBeatDetector.MaxBPM = 200;
-            bassBeatDetector.MinBPM = 70;
-            bassBeatDetector.Reset(44100);*/
+            //Start the GameIntegration worker
+            gameIntegrationUpdateWorker.DoWork += new DoWorkEventHandler(gameIntegrationWorkerDoWork);
+            gameIntegrationUpdateWorker.WorkerSupportsCancellation = true;
+            gameIntegrationUpdateWorker.RunWorkerAsync(gameIntegrationUpdateWorker);
         }
-
-        /*private static void bassBPMTimerEvent(Object source, ElapsedEventArgs e)
-        {
-            bool beat = bassBeatDetector.ProcessAudio(wasapi.InputChannel, true);
-            if (beat)
-            {
-                Console.WriteLine(bassBeatDetector.BPM.ToString("#00.0"));
-            }
-        }*/
 
         void aidaUpdateWorkerDoWork(object sender, DoWorkEventArgs e)
         {
@@ -135,10 +113,10 @@ namespace NodeBoothSender
                 //Call the updateAidaInformation and send the results to the node API
                 sendAidaInformation(updateAidaInformation());
 
-                int threadSleepDuration = 250;
-                Thread.Sleep(threadSleepDuration);
+                Thread.Sleep(250);
             }
         }
+
 
         private string updateAidaInformation()
         {
@@ -219,7 +197,7 @@ namespace NodeBoothSender
 
 
                         case "SNIC2DLRATE":
-                            usage = (int)lanDownCounter.NextValue()/1000;
+                            usage = (int)lanDownCounter.NextValue() / 1000;
                             core.Element("value").Value = usage.ToString();
                             break;
                         case "SNIC2ULRATE":
@@ -271,7 +249,7 @@ namespace NodeBoothSender
                         process.StartInfo.UseShellExecute = true;
                         process.Start();
 
-                        if(token.SelectToken("lineIn").Value<String>() == "headset")
+                        if (token.SelectToken("lineIn").Value<String>() == "headset")
                         {
                             System.Diagnostics.Process process2 = new System.Diagnostics.Process();
                             process2.StartInfo.FileName = "C:\\NIRCMD\\HeadsetMic.bat";
@@ -281,8 +259,6 @@ namespace NodeBoothSender
                         }
                     }
                 }
-
-                beatValue = 0;
             }
             catch (Exception)
             {
@@ -292,65 +268,141 @@ namespace NodeBoothSender
 
 
 
-        void beatDetected(byte Value, double[] averageEnergies)
+        async void spotifyWorkerDoWork(object sender, DoWorkEventArgs e)
         {
-            beatValueList.Add(Value);
+            BackgroundWorker localbg = (BackgroundWorker) e.Argument;
+            StatusResponse localSpotifyStatusResponse;
+            string currentTrack = "";
 
-            if (beatValueList.Count > 6)
-                beatValueList.RemoveAt(0);
-
-            int successCounter = 0;
-            for(int i=0; i<beatValueList.Count; i++)
+            while (!SpotifyLocalAPI.IsSpotifyRunning())
             {
-                switch (beatValueList[i])
-                {
-                    case 1:
-                        successCounter++;
-                        break;
-                    default:
-                        successCounter = 0;
-                        break;
-                }
+                Thread.Sleep(500);
+            }
+            while (!SpotifyLocalAPI.IsSpotifyWebHelperRunning())
+            {
+                Thread.Sleep(500);
+            }
+            while (!spotifyLocalApi.Connect())
+            {
+                Thread.Sleep(500);
             }
 
-            if (successCounter >= 6)
+            while (!localbg.CancellationPending)
             {
-                //Actually a good beat
-                beatValue = Value;
-                sendBeatInformation(Value);
-
-                beatValueList.Clear();
-
-                /*try
+                localSpotifyStatusResponse = spotifyLocalApi.GetStatus();
+                try
                 {
-                    debugWindow.Invoke(debugWindow.updateBeatProgressBar, 100);
+                    await httpClient.PostAsync(serverUrl + "/spotify", new StringContent(
+                        JsonConvert.SerializeObject(localSpotifyStatusResponse),
+                        Encoding.UTF8,
+                        "application/json"
+                        ));
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    Console.WriteLine("Open DEBUG Menu!");
-                }*/
+                    Console.WriteLine("Sending spotify data failed");
+                    return;
+                }
+
+                if (currentTrack != localSpotifyStatusResponse.Track.TrackResource.Name)
+                {
+                    currentTrack = localSpotifyStatusResponse.Track.TrackResource.Name;
+                    string albumArtUrl = localSpotifyStatusResponse.Track.GetAlbumArtUrl(AlbumArtSize.Size320);
+                    try
+                    {
+                        await httpClient.PostAsync(serverUrl + "/spotifyCover", new StringContent(
+                            "{\"albumArtUrl\":\""+albumArtUrl+"\"}",
+                            Encoding.UTF8,
+                            "application/json"
+                            ));
+                    }
+                    catch (Exception)
+                    {
+                        Console.WriteLine("Sending spotify cover url failed");
+                        return;
+                    }
+                }
+
+
+                Thread.Sleep(100);
             }
         }
 
-        private async void sendBeatInformation(byte Value)
+
+
+        void gameIntegrationWorkerDoWork(object sender, DoWorkEventArgs e)
         {
-            string json = "{";
-            json += "\"beatValue\": " + Value;
+            bool assettoCorsaRunning = false;
 
-            json += "}";
+            BackgroundWorker localbg = (BackgroundWorker)e.Argument;
+            while (!localbg.CancellationPending)
+            {
 
+                if(Process.GetProcessesByName("acs").Length > 0)
+                {
+                    if(assettoCorsaRunning)
+                    {
+
+                    }
+                    else
+                    {
+                        assettoCorsa.StaticInfoInterval = 5000;
+                        assettoCorsa.PhysicsInterval = 100;
+                        assettoCorsa.PhysicsUpdated += assettoCorsa_PhysicsUpdated;
+                        assettoCorsa.Start();
+
+                        assettoCorsaRunning = true;
+                        Console.WriteLine("Started assettoCorsa");
+                    }
+                }
+                else
+                {
+                    if(assettoCorsaRunning)
+                    {
+                        assettoCorsa.Stop();
+
+                        assettoCorsaRunning = false;
+                        Console.WriteLine("Stoped assettoCorsa");
+                    }
+                }
+
+                Thread.Sleep(500);
+            }
+        }
+
+
+
+        private static void assettoCorsa_PhysicsUpdated(object sender, PhysicsEventArgs e)
+        {
+            string jsonSubstring = "{";
+
+            jsonSubstring += "\"gas\": " + e.Physics.Gas;
+            jsonSubstring += ",\"brake\": " + e.Physics.Brake;
+            jsonSubstring += ",\"gear\": " + e.Physics.Gear;
+            jsonSubstring += ",\"rpms\": " + e.Physics.Rpms;
+            jsonSubstring += ",\"speedKmh\": " + e.Physics.SpeedKmh;
+            jsonSubstring += ",\"accG\": " + JsonConvert.SerializeObject(e.Physics.AccG);
+            jsonSubstring += ",\"tyreWear\": " + JsonConvert.SerializeObject(e.Physics.TyreWear);
+            jsonSubstring += ",\"tyreCoreTemperature\": " + JsonConvert.SerializeObject(e.Physics.TyreCoreTemperature);
+
+            jsonSubstring += "}";
+
+            Console.WriteLine(jsonSubstring);
+        }
+
+        private async void sendAssettoCorsaData(string jsonString)
+        {
             try
             {
-                beatValue = 0;
-                await httpClient.PostAsync(serverUrl+"/beat", new StringContent(
-                    json,
+                await httpClient.PostAsync(serverUrl + "/assettocorsa", new StringContent(
+                    jsonString,
                     Encoding.UTF8,
                     "application/json"
                 ));
             }
             catch (Exception)
             {
-                Console.WriteLine("Beat Value sending failed");
+                Console.WriteLine("Assetto Corsa data sending failed");
                 return;
             }
         }
@@ -375,7 +427,6 @@ namespace NodeBoothSender
         {
             debugWindow.Show();
         }
-
 
         protected override void Dispose(bool isDisposing)
         {
