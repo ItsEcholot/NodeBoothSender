@@ -292,39 +292,74 @@ namespace NodeBoothSender
                 localSpotifyStatusResponse = spotifyLocalApi.GetStatus();
                 try
                 {
-                    await httpClient.PostAsync(serverUrl + "/spotify", new StringContent(
+                    var result = httpClient.PostAsync(serverUrl + "/spotify", new StringContent(
                         JsonConvert.SerializeObject(localSpotifyStatusResponse),
                         Encoding.UTF8,
                         "application/json"
-                        ));
+                        )).Result;
+
+                    string resultJson = result.Content.ReadAsStringAsync().Result;
+
+                    if (resultJson != "\"\"")
+                    {
+                        JToken resultToken = JObject.Parse(resultJson);
+
+                        if (resultToken.SelectToken("playing").Value<Boolean>() && !localSpotifyStatusResponse.Playing)
+                            spotifyLocalApi.Play();
+                        else if(resultToken.SelectToken("playing").Value<Boolean>() == false && localSpotifyStatusResponse.Playing)
+                            spotifyLocalApi.Pause();
+
+                        if (resultToken.SelectToken("nextPrevious").Value<String>() != "")
+                            switch (resultToken.SelectToken("nextPrevious").Value<String>())
+                            {
+                                case ("next"):
+                                    spotifyLocalApi.Skip();
+                                    break;
+                                case ("previous"):
+                                    spotifyLocalApi.Previous();
+                                    break;
+                            }
+
+                        if(resultToken.SelectToken("volume").Value<Int32>() != -1)
+                            spotifyLocalApi.SetSpotifyVolume(resultToken.SelectToken("volume").Value<Int32>());
+
+
+                    }
                 }
                 catch (Exception)
                 {
                     Console.WriteLine("Sending spotify data failed");
-                    return;
+                    continue;
                 }
 
-                if (currentTrack != localSpotifyStatusResponse.Track.TrackResource.Name)
+                try
                 {
-                    currentTrack = localSpotifyStatusResponse.Track.TrackResource.Name;
-                    string albumArtUrl = localSpotifyStatusResponse.Track.GetAlbumArtUrl(AlbumArtSize.Size320);
-                    try
+                    if (currentTrack != localSpotifyStatusResponse.Track.TrackResource.Name)
                     {
-                        await httpClient.PostAsync(serverUrl + "/spotifyCover", new StringContent(
-                            "{\"albumArtUrl\":\""+albumArtUrl+"\"}",
-                            Encoding.UTF8,
-                            "application/json"
-                            ));
+                        currentTrack = localSpotifyStatusResponse.Track.TrackResource.Name;
+                        string albumArtUrl = localSpotifyStatusResponse.Track.GetAlbumArtUrl(AlbumArtSize.Size320);
+                        try
+                        {
+                            await httpClient.PostAsync(serverUrl + "/spotifyCover", new StringContent(
+                                "{\"albumArtUrl\":\""+albumArtUrl+"\"}",
+                                Encoding.UTF8,
+                                "application/json"
+                                ));
+                        }
+                        catch (Exception)
+                        {
+                            Console.WriteLine("Sending spotify cover url failed");
+                            continue;
+                        }
                     }
-                    catch (Exception)
-                    {
-                        Console.WriteLine("Sending spotify cover url failed");
-                        return;
-                    }
+                }
+                catch (Exception)
+                {
+                    continue;
                 }
 
 
-                Thread.Sleep(100);
+                Thread.Sleep(200);
             }
         }
 
